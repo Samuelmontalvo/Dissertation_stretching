@@ -1,0 +1,686 @@
+---
+title: "Effects Of Diff ects Of Different Str ent Stretching Modalities On The Antagonist And etching Modalities On The Antagonist And
+Agonist Muscles On Isokinetic Strength And Vertical Jump
+Performance"
+author: "Samuel Montalvo, Ph.D."
+date: "2023-10-21"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+---
+
+```{r setup, message=FALSE, error=FALSE, warning=FALSE}
+library(googlesheets4) # read google sheets
+library(tidyverse) # data wrangling, grammar, and manipulation
+library(ggridges) # Density Plots
+library(ggprism) # plots aesthetics
+library(ggpubr) # plots aesthetics
+library(table1) # Table 1
+library(kableExtra) # Tables
+library(rstatix) # Normality tests
+library(lme4) # Linear Mixed Models
+library(lmerTest)
+library(stargazer)  #lmer and glmer mods tables
+library(sjPlot) #for plotting and tableslmer and glmer mods
+library(performance) # model performance and model comparison
+library(flexplot)# estimates
+library("sciRmdTheme") # rmarkdown theme
+library(plotly)
+library(irr) #ICC of JH
+```
+
+
+# Overview
+
+# Biodex Data
+```{r, message=FALSE, error=FALSE}
+sheet_url <- "https://docs.google.com/spreadsheets/d/1K_IxFkSIEeZF_idOxfCg7bdBrHA0q7JNbvxf0rYosvE/edit#gid=0"
+biodex_data <- read_sheet(sheet_url, sheet = "Biodex Data")
+
+jump_data <- read_sheet(sheet_url, sheet = "Jump Data")
+```
+
+```{r}
+biodex_data$Group <- factor(biodex_data$Group, levels = sort(unique(biodex_data$Group)))
+biodex_data$ID <- as.factor(biodex_data$ID)
+
+jump_data$Group <- factor(jump_data$Group, levels = sort(unique(jump_data$Group)))
+jump_data$ID <- as.factor(jump_data$ID)
+
+jump_data <- jump_data %>% mutate(JH_cm = JH * 100)
+jump_data <- jump_data %>% mutate(Depth = abs(Depth))
+jump_data <- jump_data %>% mutate(Depth_cm = Depth * 100)
+
+biodex_data$Order <- 1
+jump_data$Order <- 2
+
+Df <- bind_rows(biodex_data, jump_data)
+```
+
+```{r}
+Df_long <- Df %>% select("Subject", "ID", "Age", "Height", "Weight","Bmi","BF", "Period","Group","JH","PT_E_R_B")
+```
+
+
+### Distribuition plots
+
+```{r, fig.width=14}
+biodex_data %>%
+  ggplot(aes(x=PTBW_E_R_B)) +
+  geom_density(fill="blue", alpha=0.5) +
+  ggtitle("Density of Age") +
+  xlab("Peak Torque Extension (NM/BW") +
+  ylab("Density") + theme_prism() + facet_grid(~Period)
+```
+
+
+```{r}
+biodex_data %>% group_by(Period, Group) %>% shapiro_test(PTBW_E_R_B)
+```
+
+
+
+
+```{r, fig.width=14}
+jump_data %>%
+  ggplot(aes(x=JH )) +
+  geom_density(fill="red", alpha=0.5) +
+  ggtitle("Density of Height") +
+  xlab("Jump Height (m)") +
+  ylab("Density") + theme_prism()+ facet_grid(~Period)
+```
+
+
+```{r}
+jump_data %>% group_by(Period, Group) %>% shapiro_test(JH)
+```
+
+
+
+```{r, fig.width=14}
+
+jump_data %>%
+  ggplot(aes(x=RSI_mod )) +
+  geom_density(fill="green", alpha=0.5) +
+  ggtitle("Density of Height") +
+  xlab("RSI modified") +
+  ylab("Density") + theme_prism()+ facet_grid(~Period)
+```
+
+
+
+```{r}
+jump_data %>% group_by(Period, Group) %>% shapiro_test(RSI_mod)
+```
+
+
+
+```{r}
+ICC_JH <- jump_data %>% select(JH_1,JH_2,JH_3,JH_4,JH_5)
+icc(ICC_JH, model = "twoway", 
+  type = "consistency", unit = "average"  )
+```
+
+
+# Demographics
+
+```{r}
+Demographics <- biodex_data %>%
+  group_by(ID) %>%
+  slice(1) %>%
+  ungroup() %>% select(Group,Age,Height,Weight,Bmi,BF)
+
+table1(~Age + Height + Weight + Bmi + BF | Group, data = Demographics)
+```
+
+
+# Biodex
+
+
+## PKET / BW
+
+
+```{r}
+PKET_Group_MODEL <- lmer(PTBW_E_R_B ~ Group * Period +  (1  | ID), data = biodex_data)
+
+
+summary(PKET_Group_MODEL)
+
+# AIC and BIC values
+aic_val <- AIC(PKET_Group_MODEL)
+bic_val <- BIC(PKET_Group_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+
+```{r}
+PKET_FULL_MODEL <- lmer(PTBW_E_R_B  ~ Period   + BF  +  (1 | ID), 
+                          data = biodex_data)
+summary(PKET_FULL_MODEL)
+
+# AIC and BIC values
+aic_val <- AIC(PKET_FULL_MODEL)
+bic_val <- BIC(PKET_FULL_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+```{r}
+tab_model(PKET_FULL_MODEL, 
+          collapse.ci = TRUE,
+          p.style = "numeric_stars", show.aic = TRUE, digits=3, digits.re = 3)
+```
+
+
+
+
+### Diagnostics
+
+The model diagnostics seems to show that data meets all model assumptions
+```{r, fig.width=12,fig.height=10}
+check_model(PKET_FULL_MODEL) 
+```
+
+##### Plots
+
+```{r, fig.height=7}
+plot_model(PKET_FULL_MODEL, title = "Peak Torque Knee Extension", 
+  show.intercept = TRUE, show.values = TRUE, digits = 3, value.offset = 0.2) +
+  theme_prism()
+```
+
+
+Extract coefficients and Create predictions plots
+
+In this plot the jitter dots are the observed values with the predicted values from the LMM in the geom_lines for each participant
+```{r,fig.width=8}
+model_coefs <- coef(PKET_FULL_MODEL)$ID %>% 
+  rename(Intercept = `(Intercept)`) %>% 
+  rownames_to_column("ID") %>% 
+  mutate(ID = as.factor(ID))
+
+merged_data <- left_join(biodex_data, model_coefs, by = c("ID", "BF"))
+
+merged_data$predicted_sprint <- predict(PKET_FULL_MODEL, newdata = merged_data)
+
+p_PTKE_ID <-  ggplot(merged_data, aes(x = Period, y = PTBW_E_R_B, group = ID, color = ID)) + 
+   geom_jitter(size=0.1) + labs(x= "Stretching Type",y="Torque (Nm)",
+                                title="Peak Knee Extension Invidual Responses") +
+   geom_line(aes(y = predicted_sprint)) + 
+   theme_prism() + scale_y_continuous(limits = c(0, 400)) +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+   guides(color = FALSE)  # This line removes the color legend for ID
+p_PTKE_ID
+```
+
+
+
+
+# Outlier plot 
+```{r}
+outlier <- merged_data %>% filter(ID == "6" ) %>%
+  ggplot(aes(x = Period, y = PTBW_E_R_B, group = ID, color = ID)) + 
+   geom_point(size=0.1) + labs(x= "Stretching Type",y="Peak Torque (Nm)",
+                                title="Peak Knee Extension Outlier Responses") +
+   geom_line() + 
+   theme_prism() +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+   guides(color = FALSE)  # This line removes the color legend for ID
+ggplotly(outlier)
+```
+
+
+
+Plot model estimates 
+```{r, warning=FALSE, message=FALSE}
+# Predict overall estimates without considering the random effects
+overall_predictions <- predict(PKET_FULL_MODEL, newdata = biodex_data, re.form = NA)
+biodex_data$overall_predictions <- overall_predictions
+
+
+# Aggregate the predictions
+biodex_data_agg <- biodex_data %>%
+  group_by(Period) %>%
+  summarise(mean_prediction = mean(overall_predictions, na.rm = TRUE))
+
+p_PTKE_box <- biodex_data %>% 
+  ggboxplot(x="Period", y="PTBW_E_R_B",color="Period", add="jitter",
+  xlab = "Stretching Type", ylab = "Torque (Nm)", title = "Peak Knee Extension")  + 
+  geom_point(data=biodex_data_agg, aes(y=mean_prediction), color="red", size=3) + # Adding the aggregated model's estimates
+  geom_line(data=biodex_data_agg, aes(y=mean_prediction, group=1), color="red", size=1) +
+  theme_prism() + scale_y_continuous(limits = c(0, 400))+
+  guides(color = FALSE)+
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+p_PTKE_box
+```
+
+
+
+
+## PAvg pt
+
+
+```{r}
+avgKET_FULL_MODEL <- lmer(Av_PT_E_R_B  ~ Period  + BF  +  (1 | ID), 
+                          data = biodex_data)
+summary(avgKET_FULL_MODEL)
+
+# AIC and BIC values
+aic_val <- AIC(avgKET_FULL_MODEL)
+bic_val <- BIC(avgKET_FULL_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+
+
+```{r, fig.height=7}
+plot_model(avgKET_FULL_MODEL, title = "Average Torque Knee Extension", 
+  show.intercept = TRUE, show.values = TRUE, digits = 3, value.offset = 0.2) +
+  theme_prism()
+```
+
+
+Extract coefficients and Create predictions plots
+
+In this plot the jitter dots are the observed values with the predicted values from the LMM in the geom_lines for each participant
+```{r,fig.width=8}
+model_coefs <- coef(avgKET_FULL_MODEL)$ID %>% 
+  rename(Intercept = `(Intercept)`) %>% 
+  rownames_to_column("ID") %>% 
+  mutate(ID = as.factor(ID))
+
+merged_data <- left_join(biodex_data, model_coefs, by = c("ID", "BF"))
+
+merged_data$predicted_sprint <- predict(avgKET_FULL_MODEL, newdata = merged_data)
+
+p_avgKET_ID <-  ggplot(merged_data, aes(x = Period, y = Av_PT_E_R_B, group = ID, color = ID)) + 
+   geom_jitter(size=0.1) + labs(x= "Stretching Type",y="Torque (Nm)",
+                                title="Average Knee Extension Invidual Responses") +
+   geom_line(aes(y = predicted_sprint)) + 
+   theme_prism() + scale_y_continuous(limits = c(0, 400))+
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+   guides(color = FALSE)  # This line removes the color legend for ID
+p_avgKET_ID
+```
+
+
+
+
+
+Plot model estimates 
+```{r, warning=FALSE, message=FALSE}
+# Predict overall estimates without considering the random effects
+overall_predictions <- predict(avgKET_FULL_MODEL, newdata = biodex_data, re.form = NA)
+biodex_data$overall_predictions <- overall_predictions
+
+
+# Aggregate the predictions
+biodex_data_agg <- biodex_data %>%
+  group_by(Period) %>%
+  summarise(mean_prediction = mean(overall_predictions, na.rm = TRUE))
+
+p_avgKET_box <- biodex_data %>% 
+  ggboxplot(x="Period", y="Av_PT_E_R_B",color="Period", add="jitter",
+  xlab = "Stretching Type", ylab = "Torque (Nm)", title = "Average Knee Extension")  + 
+  geom_point(data=biodex_data_agg, aes(y=mean_prediction), color="red", size=3) + # Adding the aggregated model's estimates
+  geom_line(data=biodex_data_agg, aes(y=mean_prediction, group=1), color="red", size=1) +
+  theme_prism() + scale_y_continuous(limits = c(0, 400))+
+  guides(color = FALSE)+
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+p_avgKET_box
+```
+
+#power
+
+```{r}
+avgpowerKET_FULL_MODEL <- lmer(Av_Power_E_R_B  ~ Period   + BF  +  (1 | ID), 
+                          data = biodex_data)
+summary(avgpowerKET_FULL_MODEL)
+
+# AIC and BIC values
+aic_val <- AIC(avgpowerKET_FULL_MODEL)
+bic_val <- BIC(avgpowerKET_FULL_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+
+
+```{r, fig.height=7}
+plot_model(avgpowerKET_FULL_MODEL, title = "Average Power Knee Extension", 
+  show.intercept = TRUE, show.values = TRUE, digits = 3, value.offset = 0.2) +
+  theme_prism()
+```
+
+
+Extract coefficients and Create predictions plots
+
+In this plot the jitter dots are the observed values with the predicted values from the LMM in the geom_lines for each participant
+```{r,fig.width=8}
+model_coefs <- coef(avgpowerKET_FULL_MODEL)$ID %>% 
+  rename(Intercept = `(Intercept)`) %>% 
+  rownames_to_column("ID") %>% 
+  mutate(ID = as.factor(ID))
+
+merged_data <- left_join(biodex_data, model_coefs, by = c("ID", "BF"))
+
+merged_data$predicted_sprint <- predict(avgpowerKET_FULL_MODEL, newdata = merged_data)
+
+p_avgpowerKET_ID <-  ggplot(merged_data, aes(x = Period, y = Av_Power_E_R_B, group = ID, color = ID)) + 
+   geom_jitter(size=0.1) + labs(x= "Stretching Type",y="Power (Watts)",
+                                title="Average Power Knee Extension Invidual Responses") +
+   geom_line(aes(y = predicted_sprint)) + 
+   theme_prism() + scale_y_continuous(limits = c(0, 400))  +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+   guides(color = FALSE)  # This line removes the color legend for ID
+p_avgpowerKET_ID
+```
+
+
+
+
+
+Plot model estimates 
+```{r, warning=FALSE, message=FALSE}
+# Predict overall estimates without considering the random effects
+overall_predictions <- predict(avgpowerKET_FULL_MODEL, newdata = biodex_data, re.form = NA)
+biodex_data$overall_predictions <- overall_predictions
+
+
+# Aggregate the predictions
+biodex_data_agg <- biodex_data %>%
+  group_by(Period) %>%
+  summarise(mean_prediction = mean(overall_predictions, na.rm = TRUE))
+
+p_avgpowerKET_box <- biodex_data %>% 
+  ggboxplot(x="Period", y="Av_Power_E_R_B",color="Period", add="jitter",
+  xlab = "Stretching Type", ylab = "Power (Watts)", title = "Average Power Knee Extension")  + 
+  geom_point(data=biodex_data_agg, aes(y=mean_prediction), color="red", size=3) + # Adding the aggregated model's estimates
+  geom_line(data=biodex_data_agg, aes(y=mean_prediction, group=1), color="red", size=1) +
+  theme_prism() + scale_y_continuous(limits = c(0, 400)) +
+  guides(color = FALSE)+
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+p_avgpowerKET_box
+```
+
+
+# EMG
+
+
+```{r}
+Vl_Group_MODEL <- lmer(vl_max ~ Period +  (1  | ID), data = biodex_data)
+
+
+summary(Vl_Group_MODEL)
+
+# AIC and BIC values
+aic_val <- AIC(Vl_Group_MODEL)
+bic_val <- BIC(Vl_Group_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+
+```{r}
+VM_Group_MODEL <- lmer(vm_max ~ Period +  (1  | ID), data = biodex_data)
+
+
+summary(VM_Group_MODEL)
+
+# AIC and BIC values
+aic_val <- AIC(VM_Group_MODEL)
+bic_val <- BIC(VM_Group_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+
+
+
+
+
+
+# Vertical Jump Data
+
+```{r}
+jump_data$Period <- factor(jump_data$Period, levels = sort(unique(jump_data$Period)))
+
+```
+
+```{r}
+JH_Group_MODEL <- lmer(JH_cm ~ Group * Period +  (1  | ID), data = jump_data)
+
+
+summary(JH_Group_MODEL)
+
+# AIC and BIC values
+aic_val <- AIC(JH_Group_MODEL)
+bic_val <- BIC(JH_Group_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+
+
+```{r}
+JH_OPT_MODEL <- lmer(JH_cm ~  Period  + BF  + Weight  +  (1  + Depth_cm| ID), data = jump_data)
+
+
+summary(JH_OPT_MODEL)
+
+# AIC and BIC values
+aic_val <- AIC(JH_OPT_MODEL)
+bic_val <- BIC(JH_OPT_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+
+
+
+
+### Diagnostics
+
+The model diagnostics seems to show that data meets all model assumptions
+```{r, fig.width=12,fig.height=10}
+check_model(JH_OPT_MODEL) 
+```
+
+##### Plots
+
+```{r, fig.height=7}
+plot_model(JH_OPT_MODEL, title = "Vertical Jump Height", 
+  show.intercept = TRUE, show.values = TRUE, digits = 3, value.offset = 0.2) +
+  theme_prism()
+```
+
+
+Extract coefficients and Create predictions plots
+
+In this plot the jitter dots are the observed values with the predicted values from the LMM in the geom_lines for each participant
+```{r,fig.width=8}
+model_coefs <- coef(JH_OPT_MODEL)$ID %>% 
+  rename(Intercept = `(Intercept)`) %>% 
+  rownames_to_column("ID") %>% 
+  mutate(ID = as.factor(ID))
+
+merged_data <- left_join(jump_data, model_coefs, by = c("ID", "Weight", "BF", "Depth_cm"))
+
+merged_data$predicted_jump <- predict(JH_OPT_MODEL, newdata = merged_data)
+
+p_JH_ID <-  ggplot(merged_data, aes(x = Period, y = JH_cm, group = ID, color = ID)) + 
+   geom_jitter(size=0.1) + labs(x= "Stretching Type",y="Height (cm)",
+                               title= "Jump Height Individual Responses") +
+   geom_line(aes(y = predicted_jump)) + 
+   theme_prism() +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+   guides(color = FALSE)  # This line removes the color legend for ID
+p_JH_ID
+```
+
+Plot model estimates 
+```{r, fig.width=8, warning=FALSE, message=FALSE}
+# Predict overall estimates without considering the random effects
+overall_predictions <- predict(JH_OPT_MODEL, newdata = jump_data, re.form = NA)
+jump_data$overall_predictions <- overall_predictions
+
+
+# Aggregate the predictions
+jump_data_agg <- jump_data %>%
+  group_by(Period) %>%
+  summarise(mean_prediction = mean(overall_predictions, na.rm = TRUE))
+
+jump_data$Group <- factor(jump_data$Group, levels = sort(unique(jump_data$Group)))
+
+
+p_JH_box <- jump_data %>% 
+  ggboxplot(x="Period", y="JH_cm",color="Period", add="jitter",
+  xlab = "Stretching Type", ylab = "Height (cm)", title = "Vertical Jump Height")  + 
+  geom_point(data=jump_data_agg, aes(y=mean_prediction), color="red", size=3) + # Adding the aggregated model's estimates
+  geom_line(data=jump_data_agg, aes(y=mean_prediction, group=1), color="red", size=1) +
+  theme_prism() +
+  guides(color = FALSE)+
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+p_JH_box
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+RSImod_OPT_MODEL <- lmer(RSI_mod ~  Period  + 
+                           (1 + Depth_cm  | ID), data = jump_data)
+summary(RSImod_OPT_MODEL)
+
+
+# AIC and BIC values
+aic_val <- AIC(RSImod_OPT_MODEL)
+bic_val <- BIC(RSImod_OPT_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+
+##### Plots
+
+```{r, fig.height=7}
+plot_model(RSImod_OPT_MODEL, title = "RSI modified", 
+  show.intercept = TRUE, show.values = TRUE, digits = 3, value.offset = 0.2) +
+  theme_prism()
+```
+
+
+Extract coefficients and Create predictions plots
+
+In this plot the jitter dots are the observed values with the predicted values from the LMM in the geom_lines for each participant
+```{r,fig.width=8}
+model_coefs <- coef(RSImod_OPT_MODEL)$ID %>% 
+  rename(Intercept = `(Intercept)`) %>% 
+  rownames_to_column("ID") %>% 
+  mutate(ID = as.factor(ID))
+
+merged_data <- left_join(jump_data, model_coefs, by = c("ID","Depth_cm"))
+
+merged_data$predicted_jump <- predict(RSImod_OPT_MODEL, newdata = merged_data)
+
+jump_data$Period <- factor(jump_data$Period, levels = sort(unique(jump_data$Period)))
+
+
+p_RSI_mod_ID <-  ggplot(merged_data, aes(x = Period, y = RSI_mod, group = ID, color = ID)) + 
+   geom_jitter(size=0.1) + labs(x= "Stretching Type",y="RSI Modified",
+                               title= "RSI Modified Individual Responses") +
+   geom_line(aes(y = predicted_jump)) + 
+   theme_prism() +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+   guides(color = FALSE)  # This line removes the color legend for ID
+p_RSI_mod_ID
+```
+
+Plot model estimates 
+```{r, fig.width=8, warning=FALSE, message=FALSE}
+# Predict overall estimates without considering the random effects
+overall_predictions <- predict(RSImod_OPT_MODEL, newdata = jump_data, re.form = NA)
+jump_data$overall_predictions <- overall_predictions
+
+
+# Aggregate the predictions
+jump_data_agg <- jump_data %>%
+  group_by(Period) %>%
+  summarise(mean_prediction = mean(overall_predictions, na.rm = TRUE))
+
+jump_data$Period <- factor(jump_data$Period, levels = sort(unique(jump_data$Period)))
+
+
+p_RSI_mod_box <- jump_data %>% 
+  ggboxplot(x="Period", y="RSI_mod",color="Period", add="jitter",
+  xlab = "Stretching Type", ylab = "RSI Modified", title = "RSI Modified")  + 
+  geom_point(data=jump_data_agg, aes(y=mean_prediction), color="red", size=3) + # Adding the aggregated model's estimates
+  geom_line(data=jump_data_agg, aes(y=mean_prediction, group=1), color="red", size=1) +
+  theme_prism() +
+  guides(color = FALSE)+
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+p_RSI_mod_box
+```
+
+
+```{r}
+RSI_OPT_MODEL <- lmer( RSI_mod ~  Period  + (1 + Depth_cm | ID), data = jump_data)
+
+summary(RSI_OPT_MODEL)
+
+# AIC and BIC values
+aic_val <- AIC(RSI_OPT_MODEL)
+bic_val <- BIC(RSI_OPT_MODEL)
+cat("AIC:", aic_val, "\n")
+cat("BIC:", bic_val, "\n")
+```
+
+
+
+```{r,fig.width=12, fig.height=10}
+ggarrange(p_PTKE_box,p_PTKE_ID,p_avgKET_box,p_avgKET_ID,p_avgpowerKET_box,p_avgpowerKET_ID,
+          ncol = 2, nrow = 3)
+ggsave("biodex.png")
+```
+
+
+
+```{r,fig.width=11,fig.height=10}
+ggarrange(p_JH_box,p_JH_ID,p_RSI_mod_box,p_RSI_mod_ID)
+ggsave("JH.png")
+```
+
+# Tables
+
+```{r,fig.width=10}
+tab_model(PKET_FULL_MODEL,avgKET_FULL_MODEL,avgpowerKET_FULL_MODEL,
+          dv.labels = c("Peak Torque Knee Extension (N-m/bw)", "Average Torque Knee Extension (N-m)",
+                        "Average Power Knee Extension (Watts)"),
+          show.reflvl = T, show.intercept = T, p.style = "numeric_stars", collapse.ci = TRUE) 
+```
+
+
+
+```{r,fig.width=10}
+tab_model(Vl_Group_MODEL,VM_Group_MODEL,
+          dv.labels = c("Vastus Lateralis (uV)", "Vasus Medialis (uV)"),
+          show.reflvl = T, show.intercept = T, p.style = "numeric_stars", collapse.ci = TRUE) 
+```
+
+
+
+```{r,fig.width=10}
+tab_model(JH_OPT_MODEL,RSI_OPT_MODEL,  
+          dv.labels = c("Jump Height (cm)", "RSI modified"),
+          show.reflvl = T, show.intercept = T, p.style = "numeric_stars", collapse.ci = TRUE) 
+```
