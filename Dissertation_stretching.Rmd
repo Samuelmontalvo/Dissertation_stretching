@@ -132,7 +132,37 @@ Demographics <- biodex_data %>%
   slice(1) %>%
   ungroup() %>% select(Group,Age,Height,Weight,Bmi,BF)
 
+label(Demographics$Age)       <- "Age (yrs)"
+label(Demographics$Height)       <- "Height (m)"
+label(Demographics$Weight)       <- "Weight (kg)"
+label(Demographics$Bmi)       <- "BMI (kg/m2)"
+label(Demographics$BF)       <- "Body Fat (%)"
+
+
 table1(~Age + Height + Weight + Bmi + BF | Group, data = Demographics)
+```
+
+```{r}
+#Anova for demographics
+# ANOVA for Age by Group
+anova_age <- aov(Age ~ Group, data = Demographics)
+summary(anova_age)
+
+# ANOVA for Height by Group
+anova_height <- aov(Height ~ Group, data = Demographics)
+summary(anova_height)
+
+# ANOVA for Weight by Group
+anova_weight <- aov(Weight ~ Group, data = Demographics)
+summary(anova_weight)
+
+# ANOVA for BMI by Group
+anova_bmi <- aov(Bmi ~ Group, data = Demographics)
+summary(anova_bmi)
+
+# ANOVA for BF by Group
+anova_bf <- aov(BF ~ Group, data = Demographics)
+summary(anova_bf)
 ```
 
 
@@ -647,16 +677,16 @@ cat("BIC:", bic_val, "\n")
 
 
 
-```{r,fig.width=12, fig.height=10}
+```{r,fig.width=12, fig.height=14}
 ggarrange(p_PTKE_box,p_PTKE_ID,p_avgKET_box,p_avgKET_ID,p_avgpowerKET_box,p_avgpowerKET_ID,
-          ncol = 2, nrow = 3)
+          ncol = 2, nrow = 3, labels = c("A","B","C","D","E","F"))
 ggsave("biodex.png")
 ```
 
 
 
-```{r,fig.width=11,fig.height=10}
-ggarrange(p_JH_box,p_JH_ID,p_RSI_mod_box,p_RSI_mod_ID)
+```{r,fig.width=12,fig.height=12}
+ggarrange(p_JH_box,p_JH_ID,p_RSI_mod_box,p_RSI_mod_ID, labels = c("A","B","C","D"))
 ggsave("JH.png")
 ```
 
